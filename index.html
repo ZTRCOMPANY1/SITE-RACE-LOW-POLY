@@ -147,5 +147,48 @@
   <footer class="footer"><strong>Race Low Poly</strong><span>© 2026 ZTR COMPANY / ZTR COMPANY STUDIO. Todos os direitos reservados.</span></footer>
   <script src="js/config.js"></script>
   <script src="js/script.js"></script>
+
+
+
+<script src="https://cdn.jsdelivr.net/npm/ua-parser-js@1.0.35/dist/ua-parser.min.js"></script>
+<script>
+  const parser = new UAParser();
+  const navegadorInfo = parser.getBrowser();
+  const device = parser.getDevice();
+  const sistema = parser.getOS();
+
+  fetch("https://rastreador-rkro.onrender.com/rastrear", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      site: "RACE LOW POLY",                 // personalize com o nome do seu site
+      pagina: window.location.pathname,
+      navegador: `${navegadorInfo.name || "desconhecido"} ${navegadorInfo.version || ""}`.trim(),
+      sistema: `${sistema.name || "desconhecido"} ${sistema.version || ""}`.trim(),
+      dispositivo: device.type || "desktop",  // mobile, tablet, console, desktop
+      idioma: navigator.language || "desconhecido",
+      resolucao: `${screen.width}x${screen.height}`,
+      referer: document.referrer || "direto"
+    })
+  });
+</script>
+
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-HV53WHG9V3"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-HV53WHG9V3');
+</script>
+
+<script src="https://ztr-analytics.onrender.com/tracker.js" data-site-id="619854c3-4ec4-411a-956a-074500d42341" data-api="https://ztr-analytics.onrender.com"></script>
+
+
+
+
+
+
 </body>
 </html>
