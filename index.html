@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Race Low Poly é um jogo de corrida desenvolvido pela ZTR COMPANY STUDIO, divisão de games da ZTR COMPANY." />
+  <title>Race Low Poly | ZTR COMPANY STUDIO</title>
+  <link rel="icon" href="assets/race-low-poly-icon.png" type="image/png" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="noise"></div>
+  <div class="cursor-glow"></div>
+
+  <header class="topbar">
+    <a class="brand" href="#home" aria-label="Race Low Poly">
+      <span class="brand-mark"><img src="assets/race-low-poly-icon.png" alt="Race Low Poly"></span>
+      <span><strong>Race Low Poly</strong><small>ZTR COMPANY STUDIO</small></span>
+    </a>
+    <button class="menu-btn" id="menuBtn" aria-label="Abrir menu"><span></span><span></span><span></span></button>
+    <nav class="nav" id="nav">
+      <a href="#game">Jogo</a><a href="#features">Recursos</a><a href="#ranking">Ranking</a><a href="atualizacoes.html">Atualizações</a><a href="download.html">Download</a><a href="#studio">Studio</a><a class="nav-cta" href="#status">Em desenvolvimento</a>
+    </nav>
+  </header>
+
+  <main id="home">
+    <section class="hero">
+      <div class="hero-content reveal">
+        <span class="eyebrow">ZTR COMPANY STUDIO apresenta</span>
+        <h1>Race<br>Low Poly</h1>
+        <p class="hero-text">Um jogo de corrida estilizado, rápido e competitivo, criado para entregar partidas offline contra IA com resultado enviado para uma dashboard online com ranking e banco de dados.</p>
+        <div class="hero-actions"><a class="btn primary" href="#game">Conhecer o jogo</a><a class="btn ghost" href="#ranking">Ver sistema online</a></div>
+        <div class="hero-stats">
+          <article><strong>IA</strong><span>Corridas offline</span></article>
+          <article><strong>Online</strong><span>Ranking global</span></article>
+          <article><strong>Low Poly</strong><span>Visual leve</span></article>
+        </div>
+      </div>
+      <div class="hero-visual reveal">
+        <div class="track-card image-hero-card">
+          <img src="assets/race-low-poly-banner.png" alt="Race Low Poly">
+          <div class="hud"><span>RACE LOW POLY</span><span>EM DESENVOLVIMENTO</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section split" id="game">
+      <div class="section-copy reveal"><span class="eyebrow">sobre o projeto</span><h2>Corrida arcade com identidade própria.</h2><p>Race Low Poly mistura visual minimalista, pistas estilizadas e competição por ranking. O jogador corre contra bots com IA, finaliza a corrida e o resultado é enviado para uma dashboard online.</p></div>
+      <div class="info-grid reveal">
+        <article><span>01</span><h3>Corridas contra IA</h3><p>Experiência offline com bots, ideal para partidas rápidas e progressão individual.</p></article>
+        <article><span>02</span><h3>Resultado online</h3><p>Ao final da corrida, os dados podem ir para servidor, banco de dados e dashboard.</p></article>
+        <article><span>03</span><h3>Ranking competitivo</h3><p>Sem loja e sem multiplayer direto: foco em tempo, pontuação e colocação no ranking.</p></article>
+        <article><span>04</span><h3>Performance leve</h3><p>Visual low poly pensado para rodar bem e manter uma identidade visual marcante.</p></article>
+      </div>
+    </section>
+
+    <section class="section" id="features">
+      <div class="center reveal"><span class="eyebrow">recursos principais</span><h2>Feito para parecer simples, mas funcionar como produto sério.</h2></div>
+      <div class="feature-row">
+        <article class="feature-card reveal"><div class="icon">🏁</div><h3>Sistema de corrida</h3><p>Partidas rápidas, bots controlados por IA, posições, voltas e tempo de conclusão.</p></article>
+        <article class="feature-card reveal"><div class="icon">📊</div><h3>Dashboard online</h3><p>Estrutura preparada para exibir jogadores, tempos, posições e histórico.</p></article>
+        <article class="feature-card reveal"><div class="icon">⚡</div><h3>Visual otimizado</h3><p>Estética low poly com foco em velocidade, leveza e boa leitura visual.</p></article>
+      </div>
+    </section>
+
+    <section class="section dashboard-section" id="ranking">
+      <div class="section-copy reveal">
+        <span class="eyebrow">sistema online</span>
+        <h2>Ranking conectado à experiência do jogo.</h2>
+        <p>O jogo pode enviar dados da corrida para uma API online. Assim, cada partida vira informação para ranking, estatísticas e histórico dos jogadores.</p>
+      </div>
+
+      <div class="dashboard reveal">
+        <div class="dash-top">
+          <span>Race Low Poly Dashboard</span>
+          <strong>LIVE DATA</strong>
+        </div>
+
+        <div class="dash-cards">
+          <article>
+            <strong id="totalRaces">--</strong>
+            <span>corridas</span>
+          </article>
+
+          <article>
+            <strong id="totalPlayers">--</strong>
+            <span>jogadores</span>
+          </article>
+
+          <article>
+            <strong id="bestTime">--</strong>
+            <span>melhor tempo</span>
+          </article>
+        </div>
+
+        <div class="table" id="rankingTable">
+          <div class="table-row head">
+            <span>#</span>
+            <span>Player</span>
+            <span>Vitórias</span>
+            <span>Corridas</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section media-section">
+      <div class="center reveal"><span class="eyebrow">mídia do jogo</span><h2>Área preparada para trailer, prints e imagens oficiais.</h2></div>
+      <div class="media-grid"><article class="media-card large reveal"><span>TRAILER / GAMEPLAY</span><h3>Coloque aqui o vídeo oficial do Race Low Poly</h3></article><article class="media-card reveal"><span>SCREENSHOT</span><h3>Pistas low poly</h3></article><article class="media-card reveal"><span>SCREENSHOT</span><h3>Carros e HUD</h3></article></div>
+    </section>
+
+    <section class="section studio" id="studio"><div class="studio-card reveal"><span class="eyebrow">desenvolvido por</span><h2>ZTR COMPANY STUDIO</h2><p>Divisão de desenvolvimento de jogos da ZTR COMPANY, responsável pela criação, identidade e evolução do Race Low Poly.</p><div class="studio-tags"><span>Games</span><span>Web Systems</span><span>Dashboard</span><span>Branding</span></div></div></section>
+
+    <section class="section final-cta" id="status"><div class="reveal"><span class="eyebrow">status do projeto</span><h2>Race Low Poly está em desenvolvimento.</h2><p>Site preparado para receber botão de download, trailer, domínio oficial e conexão com ranking.</p><a class="btn primary" href="#home">Voltar ao topo</a></div></section>
+  </main>
+
+  <footer class="footer"><strong>Race Low Poly</strong><span>© 2026 ZTR COMPANY / ZTR COMPANY STUDIO. Todos os direitos reservados.</span></footer>
+  <script src="js/script.js"></script>
+</body>
+</html>
