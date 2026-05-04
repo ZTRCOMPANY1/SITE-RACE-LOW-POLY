@@ -2,6 +2,7 @@ const menuBtn = document.getElementById("menuBtn");
 const nav = document.getElementById("nav");
 const glow = document.querySelector(".cursor-glow");
 
+
 // Abre e fecha o menu no mobile
 if (menuBtn && nav) {
   menuBtn.addEventListener("click", () => {
@@ -57,6 +58,9 @@ function formatarTempo(time) {
 
   return `${minutos}:${segundos.padStart(5, "0")}`;
 }
+
+const API_URL = API_DASHBOARD;
+
 
 // Carrega cards do dashboard
 async function carregarStats() {

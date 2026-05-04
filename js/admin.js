@@ -65,7 +65,7 @@ loginForm.addEventListener("submit", async (event) => {
   const password = document.getElementById("adminPassword").value;
 
   try {
-    const response = await fetch(`${API_URL}/admin/login`, {
+    const response = await fetch(`${API_ADMIN}/admin/login`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -131,7 +131,7 @@ updateForm.addEventListener("submit", async (event) => {
   }
 
   try {
-    const response = await fetch(`${API_URL}/admin/updates`, {
+    const response = await fetch(`${API_ADMIN}/admin/updates`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -164,7 +164,7 @@ updateForm.addEventListener("submit", async (event) => {
 
 async function carregarAtualizacoesAdmin() {
   try {
-    const response = await fetch(`${API_URL}/updates`);
+    const response = await fetch(`${API_ADMIN}/admin/updates`);
     const updates = await response.json();
 
     if (!Array.isArray(updates) || updates.length === 0) {
@@ -194,7 +194,7 @@ async function carregarAtualizacoesAdmin() {
         const id = button.getAttribute("data-delete");
 
         try {
-          const response = await fetch(`${API_URL}/admin/updates/${id}`, {
+          const response = await fetch(`${API_ADMIN}/admin/updates/${id}`, {
             method: "DELETE",
             headers: {
               "Authorization": `Bearer ${getToken()}`

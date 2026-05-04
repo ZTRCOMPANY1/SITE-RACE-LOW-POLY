@@ -1,3 +1,5 @@
+
+
 function formatDate(dateValue) {
   if (!dateValue) return "Sem data";
 
@@ -14,7 +16,7 @@ async function carregarAtualizacoes() {
   if (!container) return;
 
   try {
-    const response = await fetch(`${API_URL}/updates`);
+    const response = await fetch(`${API_ADMIN}/updates`);
     const updates = await response.json();
 
     if (!Array.isArray(updates) || updates.length === 0) {
