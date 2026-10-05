@@ -1,5 +1,4 @@
-// URL PUBLICA gerada pelo serviço em https://backend.ztrcompany.site/#/services
-// Depois de criar o serviço, troque somente a linha abaixo pelo link exibido no painel.
-const API_BASE = "https://COLE-AQUI-O-LINK-GERADO-PELO-ZTR-BACKEND";
+// API oficial do Race Low Poly hospedada no ZTR Backend Cloud.
+const API_BASE = "https://race-low-poly-api.ztrcompany.site";
 const API_DASHBOARD = API_BASE;
 const API_ADMIN = API_BASE;
