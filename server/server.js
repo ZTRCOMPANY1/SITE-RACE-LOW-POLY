@@ -2,7 +2,6 @@ const express = require("express");
 const cors = require("cors");
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
-const { Pool } = require("pg");
 
 const app = express();
 
@@ -11,16 +10,14 @@ const HOST = process.env.HOST || "127.0.0.1";
 const ADMIN_USER = process.env.ADMIN_USER || "ZTR@2023";
 const ADMIN_PASS = process.env.ADMIN_PASS;
 const ADMIN_TOKEN_SECRET = process.env.ADMIN_TOKEN_SECRET;
-const DB_SSL = ["1", "true", "yes"].includes(String(process.env.DB_SSL || "0").toLowerCase());
-const DB_SCHEMA = String(process.env.DB_SCHEMA || "race_low_poly").trim();
+const ZTR_CLOUD_API_URL = String(
+  process.env.ZTR_CLOUD_API_URL || process.env.ZTR_CLOUD_URL || "https://api.ztrcompany.site"
+).replace(/\/$/, "");
+const ZTR_CLOUD_PROJECT_ID = process.env.ZTR_CLOUD_PROJECT_ID;
+const ZTR_CLOUD_SECRET_KEY = process.env.ZTR_CLOUD_SECRET_KEY;
 
-if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(DB_SCHEMA)) {
-  console.error("ERRO: DB_SCHEMA inválido.");
-  process.exit(1);
-}
-
-if (!process.env.DATABASE_URL) {
-  console.error("ERRO: DATABASE_URL não configurado.");
+if (!ZTR_CLOUD_PROJECT_ID || !ZTR_CLOUD_SECRET_KEY) {
+  console.error("ERRO: ZTR_CLOUD_PROJECT_ID e ZTR_CLOUD_SECRET_KEY precisam estar configurados.");
   process.exit(1);
 }
 
@@ -29,14 +26,349 @@ if (!ADMIN_PASS || !ADMIN_TOKEN_SECRET) {
   process.exit(1);
 }
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: DB_SSL ? { rejectUnauthorized: false } : false,
-  options: `-c search_path=${DB_SCHEMA},public`,
-  max: Number(process.env.DB_POOL_MAX || 10),
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000
-});
+async function cloudRequest(path, { method = "GET", body } = {}) {
+  const headers = {
+    "x-api-key": ZTR_CLOUD_SECRET_KEY,
+    "x-ztr-sdk-version": "race-low-poly-api/3.0"
+  };
+  if (body !== undefined) headers["content-type"] = "application/json";
+
+  const response = await fetch(
+    `${ZTR_CLOUD_API_URL}/v1/${encodeURIComponent(ZTR_CLOUD_PROJECT_ID)}${path}`,
+    {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(10000)
+    }
+  );
+
+  const ct = response.headers.get("content-type") || "";
+  const data = ct.includes("json") ? await response.json() : await response.text();
+  if (!response.ok) {
+    const err = new Error(data?.message || `ZTR Cloud HTTP ${response.status}`);
+    err.status = response.status;
+    err.payload = data;
+    throw err;
+  }
+  return data;
+}
+
+async function cloudRows(table, maxRows = 10000) {
+  const out = [];
+  let offset = 0;
+  while (out.length < maxRows) {
+    const page = await cloudRequest(
+      `/data/${encodeURIComponent(table)}?limit=200&offset=${offset}`
+    );
+    if (!Array.isArray(page)) break;
+    out.push(...page);
+    if (page.length < 200) break;
+    offset += page.length;
+  }
+  return out.slice(0, maxRows);
+}
+
+const cloudInsert = (table, body) =>
+  cloudRequest(`/data/${encodeURIComponent(table)}`, { method: "POST", body });
+const cloudUpdate = (table, id, body) =>
+  cloudRequest(`/data/${encodeURIComponent(table)}/${encodeURIComponent(id)}`, { method: "PATCH", body });
+const cloudDelete = (table, id) =>
+  cloudRequest(`/data/${encodeURIComponent(table)}/${encodeURIComponent(id)}`, { method: "DELETE" });
+
+const ci = v => String(v || "").toLocaleLowerCase("pt-BR");
+const plusDays = d => new Date(Date.now() + d * 86400000).toISOString();
+const plusMinutes = m => new Date(Date.now() + m * 60000).toISOString();
+
+async function one(table, predicate) {
+  return (await cloudRows(table)).find(predicate) || null;
+}
+
+function mapUpdateRow(r) {
+  return {
+    id: r.id,
+    title: r.title,
+    description: r.description,
+    imageUrl: r.image_url,
+    version: r.version,
+    category: r.category,
+    date: r.update_date,
+    createdAt: r.created_at
+  };
+}
+
+const pool = {
+  async query(sql, params = []) {
+    const q = String(sql).replace(/\s+/g, " ").trim().toLowerCase();
+
+    if (q === "select 1") return { rows: [{ ok: 1 }] };
+
+    if (q.startsWith("select data from players where lower(player_name)")) {
+      const r = await one("players", x => ci(x.player_name) === ci(params[0]));
+      return { rows: r ? [{ data: r.data }] : [] };
+    }
+
+    if (q.startsWith("insert into players")) {
+      const old = await one("players", x => ci(x.player_name) === ci(params[0]));
+      if (old) await cloudUpdate("players", old.id, { player_name: params[0], data: params[1] });
+      else await cloudInsert("players", { player_name: params[0], data: params[1] });
+      return { rows: [] };
+    }
+
+    if (q === "select * from events where active = true") {
+      return { rows: (await cloudRows("events")).filter(x => x.active === true) };
+    }
+
+    if (q.includes("select code from redeem_codes") && q.includes("event_id = $2")) {
+      const r = (await cloudRows("redeem_codes")).filter(x =>
+        ci(x.player_name) === ci(params[0]) && x.event_id === params[1] && x.used === false
+      );
+      return { rows: r.map(x => ({ code: x.code })) };
+    }
+
+    if (q.startsWith("insert into redeem_codes")) {
+      const row = await cloudInsert("redeem_codes", {
+        code: params[0], player_name: params[1], event_id: params[2],
+        title: params[3], description: params[4] || "", reward_badge: params[5],
+        used: false, used_at: null
+      });
+      return { rows: [row] };
+    }
+
+    if (q.includes("select users.username, users.linked_player_name") && q.includes("from sessions")) {
+      const session = await one("sessions", x =>
+        x.token === params[0] && new Date(x.expires_at) > new Date()
+      );
+      if (!session) return { rows: [] };
+      const user = await one("users", x => ci(x.username) === ci(session.username));
+      return { rows: user ? [{ username: user.username, linked_player_name: user.linked_player_name }] : [] };
+    }
+
+    if (q.startsWith("insert into users")) {
+      const row = await cloudInsert("users", {
+        username: params[0], password_hash: params[1], linked_player_name: null
+      });
+      return { rows: [row] };
+    }
+
+    if (q.startsWith("select * from users where lower(username)")) {
+      const r = await one("users", x => ci(x.username) === ci(params[0]));
+      return { rows: r ? [r] : [] };
+    }
+
+    if (q.startsWith("insert into sessions")) {
+      const row = await cloudInsert("sessions", {
+        username: params[0], token: params[1], expires_at: plusDays(7)
+      });
+      return { rows: [row] };
+    }
+
+    if (q.startsWith("delete from sessions where token = $1")) {
+      const r = await one("sessions", x => x.token === params[0]);
+      if (r) await cloudDelete("sessions", r.id);
+      return { rows: [] };
+    }
+
+    if (q.startsWith("delete from link_codes") && q.includes("lower(player_name)")) {
+      const rows = (await cloudRows("link_codes")).filter(x =>
+        ci(x.player_name) === ci(params[0]) && x.used === false
+      );
+      for (const r of rows) await cloudDelete("link_codes", r.id);
+      return { rows: [] };
+    }
+
+    if (q.startsWith("insert into link_codes")) {
+      const row = await cloudInsert("link_codes", {
+        code: params[0], player_name: params[1], used: false,
+        used_by: null, expires_at: plusMinutes(10), used_at: null
+      });
+      return { rows: [row] };
+    }
+
+    if (q.startsWith("select * from link_codes") && q.includes("upper(code)")) {
+      const r = await one("link_codes", x =>
+        String(x.code || "").toUpperCase() === String(params[0] || "").toUpperCase()
+      );
+      return { rows: r ? [r] : [] };
+    }
+
+    if (q.startsWith("select username from users") && q.includes("linked_player_name")) {
+      const r = (await cloudRows("users")).filter(x =>
+        ci(x.linked_player_name) === ci(params[0]) && x.username !== params[1]
+      );
+      return { rows: r.map(x => ({ username: x.username })) };
+    }
+
+    if (q.startsWith("update users set linked_player_name")) {
+      const r = await one("users", x => x.username === params[1]);
+      if (r) await cloudUpdate("users", r.id, { linked_player_name: params[0] });
+      return { rows: [] };
+    }
+
+    if (q.startsWith("update link_codes set used = true")) {
+      const r = await one("link_codes", x => x.code === params[1]);
+      if (r) await cloudUpdate("link_codes", r.id, {
+        used: true, used_by: params[0], used_at: new Date().toISOString()
+      });
+      return { rows: [] };
+    }
+
+    if (q.startsWith("select * from redeem_codes where lower(player_name)")) {
+      const rows = (await cloudRows("redeem_codes")).filter(x =>
+        ci(x.player_name) === ci(params[0]) && x.used === false
+      );
+      return { rows };
+    }
+
+    if (q.startsWith("select * from redeem_codes where upper(code)")) {
+      const r = await one("redeem_codes", x =>
+        String(x.code || "").toUpperCase() === String(params[0] || "").toUpperCase()
+      );
+      return { rows: r ? [r] : [] };
+    }
+
+    if (q.startsWith("update redeem_codes set used = true")) {
+      const r = await one("redeem_codes", x => x.code === params[0]);
+      if (r) await cloudUpdate("redeem_codes", r.id, { used: true, used_at: new Date().toISOString() });
+      return { rows: [] };
+    }
+
+    if (q.startsWith("select * from badges")) {
+      const rows = await cloudRows("badges");
+      rows.sort((a,b) => String(a.name).localeCompare(String(b.name), "pt-BR"));
+      return { rows };
+    }
+
+    if (q.startsWith("insert into badges")) {
+      if (q.includes("on conflict")) {
+        const exists = await one("badges", x => x.badge_id === params[0]);
+        if (exists) return { rows: [] };
+      }
+      const row = await cloudInsert("badges", {
+        badge_id: params[0], name: params[1], icon: params[2] || "🏅", description: params[3] || ""
+      });
+      return { rows: [row] };
+    }
+
+    if (q.startsWith("delete from badges where badge_id")) {
+      const r = await one("badges", x => x.badge_id === params[0]);
+      if (r) await cloudDelete("badges", r.id);
+      return { rows: [] };
+    }
+
+    if (q.startsWith("select * from events order by created_at desc")) {
+      const rows = await cloudRows("events");
+      rows.sort((a,b) => String(b.created_at).localeCompare(String(a.created_at)));
+      return { rows };
+    }
+
+    if (q.startsWith("insert into events")) {
+      if (q.includes("on conflict")) {
+        const exists = await one("events", x => x.event_id === params[0]);
+        if (exists) return { rows: [] };
+      }
+      const row = await cloudInsert("events", {
+        event_id: params[0], title: params[1], description: params[2] || "",
+        requirement_type: params[3], requirement_value: Number(params[4]),
+        reward_badge: params[5], active: params[6] === true,
+        expires_at: params.length > 7 ? params[7] : null
+      });
+      return { rows: [row] };
+    }
+
+    if (q.startsWith("update events set active = not active")) {
+      const r = await one("events", x => x.event_id === params[0]);
+      if (r) await cloudUpdate("events", r.id, { active: !r.active });
+      return { rows: [] };
+    }
+
+    if (q.startsWith("delete from events where event_id")) {
+      const r = await one("events", x => x.event_id === params[0]);
+      if (r) await cloudDelete("events", r.id);
+      return { rows: [] };
+    }
+
+    if (q.includes("from game_updates") && q.startsWith("select")) {
+      const rows = await cloudRows("game_updates");
+      rows.sort((a,b) =>
+        String(b.update_date).localeCompare(String(a.update_date)) ||
+        String(b.created_at).localeCompare(String(a.created_at))
+      );
+      return { rows: rows.map(mapUpdateRow) };
+    }
+
+    if (q.startsWith("insert into game_updates")) {
+      const row = await cloudInsert("game_updates", {
+        title: params[0], description: params[1], image_url: params[2] || "",
+        version: params[3] || "", category: params[4] || "Desenvolvimento",
+        update_date: params[5]
+      });
+      return { rows: [mapUpdateRow(row)] };
+    }
+
+    if (q.startsWith("delete from game_updates where id")) {
+      await cloudDelete("game_updates", Number(params[0]));
+      return { rows: [] };
+    }
+
+    if (q.startsWith("insert into page_views")) {
+      try {
+        const row = await cloudInsert("page_views", {
+          site: params[0], page: params[1], user_agent: params[2],
+          language: params[3], resolution: params[4], referrer: params[5]
+        });
+        return { rows: [row] };
+      } catch {
+        return { rows: [] };
+      }
+    }
+
+    if (q.includes("count(*)::int as count from page_views")) {
+      let rows = [];
+      try { rows = await cloudRows("page_views"); } catch {}
+      if (q.includes("created_at >= current_date")) {
+        const today = new Date().toISOString().slice(0,10);
+        rows = rows.filter(x => String(x.created_at || "").startsWith(today));
+      }
+      return { rows: [{ count: rows.length }] };
+    }
+
+    if (q.startsWith("select page, count(*)::int as views from page_views")) {
+      let rows = [];
+      try { rows = await cloudRows("page_views"); } catch {}
+      const counts = {};
+      for (const r of rows) counts[r.page] = (counts[r.page] || 0) + 1;
+      return {
+        rows: Object.entries(counts)
+          .sort((a,b)=>b[1]-a[1]).slice(0,20)
+          .map(([page,views])=>({page,views}))
+      };
+    }
+
+    if (q === "select data from players") {
+      return { rows: (await cloudRows("players")).map(x => ({ data: x.data })) };
+    }
+
+    if (q.startsWith("select player_name, data from players")) {
+      return { rows: (await cloudRows("players")).map(x => ({ player_name: x.player_name, data: x.data })) };
+    }
+
+    if (q.startsWith("update players set data = $1")) {
+      const r = await one("players", x => x.player_name === params[1]);
+      if (r) await cloudUpdate("players", r.id, { data: params[0] });
+      return { rows: [] };
+    }
+
+    if (q === "delete from redeem_codes") {
+      const rows = await cloudRows("redeem_codes");
+      for (const r of rows) await cloudDelete("redeem_codes", r.id);
+      return { rows: [] };
+    }
+
+    throw new Error(`Consulta não suportada no adaptador ZTR Cloud: ${q.slice(0,180)}`);
+  },
+  async end() {}
+};
 
 const defaultOrigins = [
   "https://racelowpoly.ztrcompany.site",
@@ -62,127 +394,34 @@ app.use(cors({
 app.use(express.json({ limit: "10mb" }));
 
 async function initDatabase() {
-  await pool.query(`CREATE SCHEMA IF NOT EXISTS "${DB_SCHEMA}"`);
+  await pool.query("SELECT 1");
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS users (
-      id SERIAL PRIMARY KEY,
-      username TEXT UNIQUE NOT NULL,
-      password_hash TEXT NOT NULL,
-      linked_player_name TEXT,
-      created_at TIMESTAMP DEFAULT NOW()
-    );
+  await pool.query(
+    `INSERT INTO badges (badge_id, name, icon, description)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (badge_id) DO NOTHING`,
+    ["BADGE_WIN_10", "10 Vitórias", "🏆", "Ganhou 10 corridas."]
+  );
 
-    CREATE TABLE IF NOT EXISTS sessions (
-      id SERIAL PRIMARY KEY,
-      username TEXT NOT NULL,
-      token TEXT UNIQUE NOT NULL,
-      created_at TIMESTAMP DEFAULT NOW(),
-      expires_at TIMESTAMP NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS players (
-      player_name TEXT PRIMARY KEY,
-      data JSONB NOT NULL,
-      updated_at TIMESTAMP DEFAULT NOW()
-    );
-
-    CREATE TABLE IF NOT EXISTS link_codes (
-      code TEXT PRIMARY KEY,
-      player_name TEXT NOT NULL,
-      used BOOLEAN DEFAULT FALSE,
-      used_by TEXT,
-      created_at TIMESTAMP DEFAULT NOW(),
-      expires_at TIMESTAMP NOT NULL,
-      used_at TIMESTAMP
-    );
-
-    CREATE TABLE IF NOT EXISTS badges (
-      badge_id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      icon TEXT DEFAULT '🏅',
-      description TEXT DEFAULT ''
-    );
-
-    CREATE TABLE IF NOT EXISTS events (
-      event_id TEXT PRIMARY KEY,
-      title TEXT NOT NULL,
-      description TEXT DEFAULT '',
-      requirement_type TEXT NOT NULL,
-      requirement_value FLOAT NOT NULL,
-      reward_badge TEXT NOT NULL,
-      active BOOLEAN DEFAULT TRUE,
-      created_at TIMESTAMP DEFAULT NOW(),
-      expires_at TIMESTAMP
-    );
-
-    CREATE TABLE IF NOT EXISTS redeem_codes (
-      code TEXT PRIMARY KEY,
-      player_name TEXT NOT NULL,
-      event_id TEXT NOT NULL,
-      title TEXT NOT NULL,
-      description TEXT DEFAULT '',
-      reward_badge TEXT NOT NULL,
-      used BOOLEAN DEFAULT FALSE,
-      created_at TIMESTAMP DEFAULT NOW(),
-      used_at TIMESTAMP
-    );
-
-    CREATE TABLE IF NOT EXISTS game_updates (
-      id SERIAL PRIMARY KEY,
-      title TEXT NOT NULL,
-      description TEXT NOT NULL,
-      image_url TEXT,
-      version TEXT,
-      category TEXT DEFAULT 'Desenvolvimento',
-      update_date DATE NOT NULL,
-      created_at TIMESTAMP DEFAULT NOW()
-    );
-
-    CREATE TABLE IF NOT EXISTS page_views (
-      id BIGSERIAL PRIMARY KEY,
-      site TEXT NOT NULL DEFAULT 'RACE LOW POLY',
-      page TEXT NOT NULL,
-      user_agent TEXT,
-      language TEXT,
-      resolution TEXT,
-      referrer TEXT,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_page_views_created_at ON page_views(created_at DESC);
-    CREATE INDEX IF NOT EXISTS idx_page_views_page ON page_views(page);
-  `);
-
-  await pool.query(`
-    INSERT INTO badges (badge_id, name, icon, description)
-    VALUES ('BADGE_WIN_10', '10 Vitórias', '🏆', 'Ganhou 10 corridas.')
-    ON CONFLICT (badge_id) DO NOTHING;
-  `);
-
-  await pool.query(`
-    INSERT INTO events (
-      event_id,
-      title,
-      description,
-      requirement_type,
-      requirement_value,
-      reward_badge,
-      active
+  await pool.query(
+    `INSERT INTO events (
+      event_id, title, description, requirement_type,
+      requirement_value, reward_badge, active
     )
-    VALUES (
-      'EVENT_WIN_10',
-      'Desafio das 10 Vitórias',
-      'Ganhe 10 corridas para desbloquear uma insígnia.',
-      'RACES_WON',
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
+    ON CONFLICT (event_id) DO NOTHING`,
+    [
+      "EVENT_WIN_10",
+      "Desafio das 10 Vitórias",
+      "Ganhe 10 corridas para desbloquear uma insígnia.",
+      "RACES_WON",
       10,
-      'BADGE_WIN_10',
-      TRUE
-    )
-    ON CONFLICT (event_id) DO NOTHING;
-  `);
+      "BADGE_WIN_10",
+      true
+    ]
+  );
 
-  console.log("Banco iniciado com sucesso.");
+  console.log("ZTR Cloud conectado com sucesso.");
 }
 
 function createEmptyPlayer(playerName) {
