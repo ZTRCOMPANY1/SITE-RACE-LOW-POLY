@@ -164,8 +164,19 @@ updateForm.addEventListener("submit", async (event) => {
 
 async function carregarAtualizacoesAdmin() {
   try {
-    const response = await fetch(`${API_ADMIN}/admin/updates`);
+    const response = await fetch(`${API_ADMIN}/admin/updates`, {
+      headers: {
+        "Authorization": `Bearer ${getToken()}`
+      }
+    });
     const updates = await response.json();
+
+    if (response.status === 401) {
+      clearToken();
+      showLock();
+      showAlert("Sua sessão expirou. Entre novamente.", "error");
+      return;
+    }
 
     if (!Array.isArray(updates) || updates.length === 0) {
       adminUpdatesList.innerHTML = `

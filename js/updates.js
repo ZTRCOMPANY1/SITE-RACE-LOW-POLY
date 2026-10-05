@@ -60,7 +60,7 @@ async function carregarAtualizacoes() {
     container.innerHTML = `
       <div class="empty-state reveal visible">
         <h3>Não foi possível carregar as atualizações.</h3>
-        <p>Confira se o servidor está online no Render.</p>
+        <p>Confira se a API do servidor ZTR está online.</p>
       </div>
     `;
   }

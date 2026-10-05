@@ -17,7 +17,7 @@
       <section class="admin-card lock-screen" id="lockScreen">
         <span class="eyebrow">acesso restrito</span>
         <h2>Painel Admin</h2>
-        <p>Entre com o usuário e senha configurados no Render para publicar atualizações no PostgreSQL.</p>
+        <p>Entre com o usuário e senha configurados no servidor ZTR para publicar atualizações no PostgreSQL.</p>
 
         <form class="admin-form" id="loginForm">
           <label>
@@ -99,28 +99,7 @@
   <script src="js/admin.js"></script>
 
 
-<script src="https://cdn.jsdelivr.net/npm/ua-parser-js@1.0.35/dist/ua-parser.min.js"></script>
-<script>
-  const parser = new UAParser();
-  const navegadorInfo = parser.getBrowser();
-  const device = parser.getDevice();
-  const sistema = parser.getOS();
-
-  fetch("https://rastreador-pfzh.onrender.com/rastrear", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      site: "RACE LOW POLY",                 // personalize com o nome do seu site
-      pagina: window.location.pathname,
-      navegador: `${navegadorInfo.name || "desconhecido"} ${navegadorInfo.version || ""}`.trim(),
-      sistema: `${sistema.name || "desconhecido"} ${sistema.version || ""}`.trim(),
-      dispositivo: device.type || "desktop",  // mobile, tablet, console, desktop
-      idioma: navigator.language || "desconhecido",
-      resolucao: `${screen.width}x${screen.height}`,
-      referer: document.referrer || "direto"
-    })
-  });
-</script>
+<script src="js/telemetry.js"></script>
 
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-HV53WHG9V3"></script>
@@ -132,7 +111,6 @@
   gtag('config', 'G-HV53WHG9V3');
 </script>
 
-<script src="https://ztr-analytics.onrender.com/tracker.js" data-site-id="619854c3-4ec4-411a-956a-074500d42341" data-api="https://ztr-analytics.onrender.com"></script>
 
 
 
