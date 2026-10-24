@@ -1,6 +1,7 @@
 .env
 .env.*
 !.env.example
+auth.json
 node_modules/
 npm-debug.log*
 .DS_Store
