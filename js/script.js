@@ -62,84 +62,105 @@ function formatarTempo(time) {
 const API_URL = API_DASHBOARD;
 
 
-// Carrega cards do dashboard
-async function carregarStats() {
+// O dashboard só consulta a API quando seus elementos existem na página.
+// A seção está atualmente desativada no index.html; nesse caso, não há polling.
+const dashboardElements = {
+  totalPlayers: document.getElementById("totalPlayers"),
+  totalRaces: document.getElementById("totalRaces"),
+  bestTime: document.getElementById("bestTime"),
+  rankingTable: document.getElementById("rankingTable")
+};
+
+const dashboardEnabled = Object.values(dashboardElements).some((element) => element !== null);
+const DASHBOARD_REFRESH_MS = 30000;
+let dashboardAtualizando = false;
+
+async function carregarDashboard() {
+  if (!dashboardEnabled || dashboardAtualizando) return;
+
+  dashboardAtualizando = true;
+
   try {
-    const playersRes = await fetch(`${API_URL}/dashboard/most-wins`);
-    const bestRes = await fetch(`${API_URL}/dashboard/best-times`);
+    // Reutiliza a mesma resposta de most-wins para cards e ranking.
+    const [playersResponse, bestTimesResponse] = await Promise.all([
+      fetch(API_URL + "/dashboard/most-wins"),
+      fetch(API_URL + "/dashboard/best-times")
+    ]);
 
-    const players = await playersRes.json();
-    const bestTimes = await bestRes.json();
-
-    const totalPlayers = players.length;
-
-    const totalRaces = players.reduce((total, player) => {
-      return total + (player.racesPlayed || 0);
-    }, 0);
-
-    let bestTime = "--";
-
-    if (bestTimes.length > 0) {
-      const fastest = bestTimes.sort((a, b) => {
-        return Number(a.raceTime) - Number(b.raceTime);
-      })[0];
-
-      bestTime = formatarTempo(fastest.raceTime);
+    if (!playersResponse.ok || !bestTimesResponse.ok) {
+      throw new Error("A API do dashboard retornou uma resposta inválida.");
     }
 
-    const playersEl = document.getElementById("totalPlayers");
-    const racesEl = document.getElementById("totalRaces");
-    const timeEl = document.getElementById("bestTime");
+    const [players, bestTimes] = await Promise.all([
+      playersResponse.json(),
+      bestTimesResponse.json()
+    ]);
 
-    if (playersEl) playersEl.textContent = totalPlayers;
-    if (racesEl) racesEl.textContent = totalRaces.toLocaleString("pt-BR");
-    if (timeEl) timeEl.textContent = bestTime;
+    if (!Array.isArray(players) || !Array.isArray(bestTimes)) {
+      throw new Error("Formato de dados inválido recebido do dashboard.");
+    }
+
+    const totalRaces = players.reduce((total, player) => {
+      return total + (Number(player.racesPlayed) || 0);
+    }, 0);
+
+    const fastest = bestTimes.reduce((best, entry) => {
+      const time = Number(entry.raceTime);
+      if (!Number.isFinite(time)) return best;
+      return !best || time < Number(best.raceTime) ? entry : best;
+    }, null);
+
+    if (dashboardElements.totalPlayers) {
+      dashboardElements.totalPlayers.textContent = String(players.length);
+    }
+    if (dashboardElements.totalRaces) {
+      dashboardElements.totalRaces.textContent = totalRaces.toLocaleString("pt-BR");
+    }
+    if (dashboardElements.bestTime) {
+      dashboardElements.bestTime.textContent = fastest ? formatarTempo(fastest.raceTime) : "--";
+    }
+
+    const table = dashboardElements.rankingTable;
+    if (table) {
+      const fragment = document.createDocumentFragment();
+      const header = document.createElement("div");
+      header.className = "table-row head";
+
+      ["#", "Player", "Vitórias", "Corridas"].forEach((label) => {
+        const cell = document.createElement("span");
+        cell.textContent = label;
+        header.appendChild(cell);
+      });
+      fragment.appendChild(header);
+
+      players.slice(0, 10).forEach((player, index) => {
+        const row = document.createElement("div");
+        row.className = "table-row";
+        const values = [
+          index + 1,
+          player.playerName || "Player",
+          player.racesWon || 0,
+          player.racesPlayed || 0
+        ];
+
+        values.forEach((value) => {
+          const cell = document.createElement("span");
+          cell.textContent = String(value);
+          row.appendChild(cell);
+        });
+        fragment.appendChild(row);
+      });
+
+      table.replaceChildren(fragment);
+    }
   } catch (error) {
-    console.error("Erro ao carregar stats:", error);
+    console.error("Erro ao carregar dashboard:", error);
+  } finally {
+    dashboardAtualizando = false;
   }
 }
 
-// Carrega ranking real
-async function carregarRanking() {
-  try {
-    const response = await fetch(`${API_URL}/dashboard/most-wins`);
-    const ranking = await response.json();
-
-    const table = document.getElementById("rankingTable");
-
-    if (!table) return;
-
-    table.innerHTML = `
-      <div class="table-row head">
-        <span>#</span>
-        <span>Player</span>
-        <span>Vitórias</span>
-        <span>Corridas</span>
-      </div>
-    `;
-
-    ranking.slice(0, 10).forEach((player, index) => {
-      const row = document.createElement("div");
-      row.className = "table-row";
-
-      row.innerHTML = `
-        <span>${index + 1}</span>
-        <span>${player.playerName || "Player"}</span>
-        <span>${player.racesWon || 0}</span>
-        <span>${player.racesPlayed || 0}</span>
-      `;
-
-      table.appendChild(row);
-    });
-  } catch (error) {
-    console.error("Erro ao carregar ranking:", error);
-  }
+if (dashboardEnabled) {
+  carregarDashboard();
+  setInterval(carregarDashboard, DASHBOARD_REFRESH_MS);
 }
-
-carregarStats();
-carregarRanking();
-
-setInterval(() => {
-  carregarStats();
-  carregarRanking();
-}, 10000);
